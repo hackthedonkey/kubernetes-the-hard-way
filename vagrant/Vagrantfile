@@ -4,12 +4,16 @@
 # Define the number of master and worker nodes
 # If this number is changed, remember to update setup-hosts.sh script with the new hosts IP details in /etc/hosts of each VM.
 NUM_MASTER_NODE = 2
-NUM_WORKER_NODE = 2
+NUM_WORKER_NODE = 3
+NUM_ANSIBLE_SERVER = 1
+NUM_JENKINS_SERVER = 1
 
-IP_NW = "192.168.5."
+IP_NW = "172.16.5."
 MASTER_IP_START = 10
 NODE_IP_START = 20
 LB_IP_START = 30
+ANSIBLE_IP_START = 40
+JENKINS_IP_START = 50
 
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
 # configures the configuration version (we support older styles for
@@ -53,7 +57,7 @@ Vagrant.configure("2") do |config|
   # View the documentation for the provider you are using for more
   # information on available options.
 
-  # Provision Master Nodes
+  #Provision Master Node
   (1..NUM_MASTER_NODE).each do |i|
       config.vm.define "master-#{i}" do |node|
         # Name shown in the GUI
@@ -71,28 +75,8 @@ Vagrant.configure("2") do |config|
         end
 
         node.vm.provision "setup-dns", type: "shell", :path => "ubuntu/update-dns.sh"
-        node.vm.provision "file", source: "./ubuntu/cert_verify.sh", destination: "$HOME/"
 
       end
-  end
-
-  # Provision Load Balancer Node
-  config.vm.define "loadbalancer" do |node|
-    node.vm.provider "virtualbox" do |vb|
-        vb.name = "kubernetes-ha-lb"
-        vb.memory = 512
-        vb.cpus = 1
-    end
-    node.vm.hostname = "loadbalancer"
-    node.vm.network :private_network, ip: IP_NW + "#{LB_IP_START}"
-	node.vm.network "forwarded_port", guest: 22, host: 2730
-
-    node.vm.provision "setup-hosts", :type => "shell", :path => "ubuntu/vagrant/setup-hosts.sh" do |s|
-      s.args = ["enp0s8"]
-    end
-
-    node.vm.provision "setup-dns", type: "shell", :path => "ubuntu/update-dns.sh"
-
   end
 
   # Provision Worker Nodes
@@ -105,17 +89,74 @@ Vagrant.configure("2") do |config|
         end
         node.vm.hostname = "worker-#{i}"
         node.vm.network :private_network, ip: IP_NW + "#{NODE_IP_START + i}"
-		node.vm.network "forwarded_port", guest: 22, host: "#{2720 + i}"
+		    node.vm.network "forwarded_port", guest: 22, host: "#{2720 + i}"
 
         node.vm.provision "setup-hosts", :type => "shell", :path => "ubuntu/vagrant/setup-hosts.sh" do |s|
           s.args = ["enp0s8"]
         end
 
         node.vm.provision "setup-dns", type: "shell", :path => "ubuntu/update-dns.sh"
-        node.vm.provision "install-docker", type: "shell", :path => "ubuntu/install-docker-2.sh"
-        node.vm.provision "allow-bridge-nf-traffic", :type => "shell", :path => "ubuntu/allow-bridge-nf-traffic.sh"
-        node.vm.provision "file", source: "./ubuntu/cert_verify.sh", destination: "$HOME/"
 
     end
+  end
+
+  # Provision Load Balancer Node
+  config.vm.define "loadbalancer" do |node|
+    node.vm.provider "virtualbox" do |vb|
+        vb.name = "kubernetes-ha-lb"
+        vb.memory = 512
+        vb.cpus = 1
+    end
+    node.vm.hostname = "loadbalancer"
+    node.vm.network :private_network, ip: IP_NW + "#{LB_IP_START}"
+	  node.vm.network "forwarded_port", guest: 22, host: 2730
+
+    node.vm.provision "setup-hosts", :type => "shell", :path => "ubuntu/vagrant/setup-hosts.sh" do |s|
+      s.args = ["enp0s8"]
+    end
+
+    node.vm.provision "setup-dns", type: "shell", :path => "ubuntu/update-dns.sh"
+
+  end
+
+  # Provision Ansible Server
+  config.vm.define "ansible" do |node|
+    node.vm.provider "virtualbox" do |vb|
+        vb.name = "kubernetes-ha-ansible"
+        vb.memory = 1024
+        vb.cpus = 1
+    end
+    node.vm.hostname = "ansible"
+    node.vm.network :private_network, ip: IP_NW + "#{ANSIBLE_IP_START}"
+	  node.vm.network "forwarded_port", guest: 22, host: 2740
+
+    node.vm.provision "setup-hosts", :type => "shell", :path => "ubuntu/vagrant/setup-hosts.sh" do |s|
+      s.args = ["enp0s8"]
+    end
+
+    node.vm.provision "setup-dns", type: "shell", :path => "ubuntu/update-dns.sh"
+    node.vm.provision "install-ansible", type: "shell", :path => "ubuntu/install-ansible.sh"
+
+
+  end
+
+  # Provision Jenkins Server
+  config.vm.define "jenkins" do |node|
+    node.vm.provider "virtualbox" do |vb|
+        vb.name = "kubernetes-ha-jenkins"
+        vb.memory = 1024
+        vb.cpus = 1
+    end
+    node.vm.hostname = "jenkins"
+    node.vm.network :private_network, ip: IP_NW + "#{JENKINS_IP_START}"
+	  node.vm.network "forwarded_port", guest: 22, host: 2750
+
+    node.vm.provision "setup-hosts", :type => "shell", :path => "ubuntu/vagrant/setup-hosts.sh" do |s|
+      s.args = ["enp0s8"]
+    end
+
+    node.vm.provision "setup-dns", type: "shell", :path => "ubuntu/update-dns.sh"
+    node.vm.provision "install-jenkins", type: "shell", :path => "ubuntu/install-jenkins.sh"
+
   end
 end
